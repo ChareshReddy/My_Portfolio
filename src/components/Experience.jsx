@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Calendar, MapPin, Terminal, CheckCircle2 } from 'lucide-react';
 import { experience } from '../data/content';
 import gsap from 'gsap';
@@ -6,18 +6,45 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
 
+const numSegments = 16;
+
 export default function Experience() {
   const [activeIndex, setActiveIndex] = useState(0);
+  const [activeSegment, setActiveSegment] = useState(0);
   const sectionRef = useRef(null);
   const trackRef = useRef(null);
-  const markerRef = useRef(null);
+
+  // Generate anatomical spine math curves (gentle S-curve sway + rotating vertebral slope)
+  const { spineSegments, pathD } = useMemo(() => {
+    const segments = [];
+    const height = 330; // height of the spine track
+    const sway = 16;    // left-right curve sway width
+    
+    for (let i = 0; i < numSegments; i++) {
+      const t = i / (numSegments - 1);
+      const y = t * height + 15; // vertical offset offset
+      
+      // S-curve: sway cycle using sine
+      const x = 60 + Math.sin(t * Math.PI * 2) * sway;
+      
+      // Calculate tangential angle slope aligned to curve
+      const dx = sway * Math.PI * 2 * Math.cos(t * Math.PI * 2);
+      const dy = height;
+      const angle = Math.atan2(dx, dy) * (180 / Math.PI);
+      
+      segments.push({ x, y, angle });
+    }
+
+    const path = segments.reduce((acc, seg, idx) => {
+      return acc + `${idx === 0 ? 'M' : 'L'} ${seg.x} ${seg.y} `;
+    }, '');
+
+    return { spineSegments: segments, pathD: path };
+  }, []);
 
   useEffect(() => {
     const section = sectionRef.current;
-    const marker = markerRef.current;
-    const track = trackRef.current;
-
-    if (!section || !marker || !track) return;
+    if (!section) return;
 
     const mm = gsap.matchMedia();
 
@@ -26,26 +53,25 @@ export default function Experience() {
       const pinTrigger = ScrollTrigger.create({
         trigger: section,
         start: "top top",
-        end: "+=200%", // 200% viewport scroll length
+        end: "+=200%", // Scroll length
         pin: true,
         scrub: true,
         onUpdate: (self) => {
-          const trackHeight = track.offsetHeight;
-          // Animate node marker down the spine based on scroll progress
-          const markerY = self.progress * (trackHeight - 18); // 18px is marker size adjustment
-          gsap.to(marker, { 
-            y: markerY, 
-            duration: 0.1, 
-            ease: "power2.out" 
-          });
+          const progress = self.progress;
+
+          // Calculate highlighted segment (vertebra) index
+          const activeSeg = Math.min(
+            Math.floor(progress * numSegments),
+            numSegments - 1
+          );
+          setActiveSegment(activeSeg);
 
           // Calculate active card index
-          const progress = self.progress;
-          const idx = Math.min(
+          const activeCard = Math.min(
             Math.floor(progress * experience.length),
             experience.length - 1
           );
-          setActiveIndex(idx);
+          setActiveIndex(activeCard);
         }
       });
 
@@ -61,8 +87,15 @@ export default function Experience() {
           trigger: `#exp-card-mobile-${idx}`,
           start: "top 35%",
           end: "bottom 35%",
-          onEnter: () => setActiveIndex(idx),
-          onEnterBack: () => setActiveIndex(idx)
+          onEnter: () => {
+            setActiveIndex(idx);
+            // Sync mobile segment approx highlight
+            setActiveSegment(Math.floor((idx / experience.length) * numSegments));
+          },
+          onEnterBack: () => {
+            setActiveIndex(idx);
+            setActiveSegment(Math.floor((idx / experience.length) * numSegments));
+          }
         });
       });
 
@@ -91,13 +124,12 @@ export default function Experience() {
           <div className="w-12 h-1 bg-gradient-to-r from-cyan-500 to-teal-400 mt-4 rounded-full" />
         </div>
 
-        {/* DESKTOP VIEW (Pinned Layout) */}
+        {/* DESKTOP VIEW (Pinned layout with Vertebral Spine) */}
         <div className="hidden md:flex items-center justify-between w-full max-w-5xl mx-auto h-[480px]">
           
           {/* Experience Cards Stack (Left) */}
           <div className="w-[60%] relative h-full flex items-center justify-start">
             {experience.map((exp, idx) => {
-              // Custom precise slide translation based on active index
               let cardClass = "";
               if (idx < activeIndex) {
                 cardClass = "opacity-0 -translate-y-16 scale-95 pointer-events-none";
@@ -113,7 +145,6 @@ export default function Experience() {
                   className={`absolute inset-x-0 transition-all duration-400 ease-[power2.inOut] transform ${cardClass}`}
                 >
                   <div className="group relative glass-panel border border-cyan-500/10 rounded-2xl p-8 hover:bg-slate-900/40 transition-colors shadow-2xl">
-                    {/* Header bar */}
                     <div className="flex items-center justify-between gap-2.5 mb-5">
                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-cyan-950/60 border border-cyan-500/25 text-cyan-400 font-mono text-[10px] uppercase font-semibold">
                         {exp.type}
@@ -133,7 +164,6 @@ export default function Experience() {
                       {exp.company}
                     </div>
 
-                    {/* Metadata lines */}
                     <div className="flex items-center gap-4 mt-3 mb-6 font-mono text-xs text-slate-500">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-4 h-4" />
@@ -145,7 +175,6 @@ export default function Experience() {
                       </div>
                     </div>
 
-                    {/* Highlights details */}
                     <ul className="space-y-3.5 text-left text-xs sm:text-sm text-slate-400 leading-relaxed">
                       {exp.achievements.map((ach, aIdx) => (
                         <li key={aIdx} className="flex items-start gap-2.5">
@@ -160,21 +189,75 @@ export default function Experience() {
             })}
           </div>
 
-          {/* Spine & Node Progress (Right) */}
+          {/* Spine & Vertebrae Stack (Right) */}
           <div className="w-[25%] flex items-center justify-center h-full">
-            <div 
+            <svg 
               ref={trackRef} 
-              className="w-[3px] bg-slate-900 rounded-full h-[320px] relative border border-slate-900"
+              width="120" 
+              height="360" 
+              className="overflow-visible select-none"
             >
-              {/* Vertical neon energy spine segment */}
-              <div className="absolute top-0 bottom-0 left-0 right-0 bg-gradient-to-b from-cyan-950/20 via-teal-950/20 to-slate-950/20 rounded-full" />
+              <defs>
+                <filter id="cyan-glow" x="-30%" y="-30%" width="160%" height="160%">
+                  <feGaussianBlur stdDeviation="3.5" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
               
-              {/* Dynamic traveling node cursor */}
-              <div 
-                ref={markerRef} 
-                className="absolute left-1/2 -translate-x-1/2 w-4.5 h-4.5 rounded-full bg-cyan-400 border-2 border-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.95)] z-20 cursor-pointer"
+              {/* Spinal Cord Center Fiber Line */}
+              <path 
+                d={pathD} 
+                fill="none" 
+                stroke="#1e293b" 
+                strokeWidth="2.5" 
+                strokeDasharray="4 4"
+                className="opacity-50"
               />
-            </div>
+              
+              {/* Vertebrae Segments */}
+              {spineSegments.map((seg, idx) => {
+                const isActive = activeSegment === idx;
+                return (
+                  <g 
+                    key={idx}
+                    transform={`translate(${seg.x}, ${seg.y}) rotate(${seg.angle})`}
+                    className="transition-all duration-300"
+                  >
+                    {/* Vertebra Transverse/Lateral Processes */}
+                    <circle 
+                      cx="-18" 
+                      cy="0" 
+                      r="1.8" 
+                      fill={isActive ? "#22d3ee" : "#334155"} 
+                      opacity={isActive ? 1 : 0.35}
+                      className="transition-colors duration-300"
+                    />
+                    <circle 
+                      cx="18" 
+                      cy="0" 
+                      r="1.8" 
+                      fill={isActive ? "#22d3ee" : "#334155"} 
+                      opacity={isActive ? 1 : 0.35}
+                      className="transition-colors duration-300"
+                    />
+                    
+                    {/* Vertebra Main Body (Capsule Rect) */}
+                    <rect
+                      x="-13"
+                      y="-4.5"
+                      width="26"
+                      height="9"
+                      rx="3"
+                      fill={isActive ? "#22d3ee" : "#090d16"}
+                      stroke={isActive ? "#22d3ee" : "#1e293b"}
+                      strokeWidth="1.5"
+                      filter={isActive ? "url(#cyan-glow)" : "none"}
+                      className="transition-all duration-300 cursor-pointer"
+                    />
+                  </g>
+                );
+              })}
+            </svg>
           </div>
         </div>
 
@@ -210,7 +293,7 @@ export default function Experience() {
                   {exp.company}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 mt-3 mb-4 font-mono text-[10px] text-slate-500">
+                <div className="flex flex-wrap items-center gap-3 mt-3 mb-4 font-mono text-[10px] text-slate-550">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
                     <span>{exp.period}</span>
