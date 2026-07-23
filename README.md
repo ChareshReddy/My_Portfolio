@@ -1,16 +1,58 @@
-# React + Vite
+# Professional 3D Portfolio - Charesh Reddy Guntakrindapalli
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A high-performance, visually stunning 3D scroll-driven developer portfolio designed with a modern data-engineering theme. Built using React, Vite, Tailwind CSS v4, React Three Fiber (Three.js), and GSAP ScrollTrigger.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 🚀 Key Architectural Features
 
-## React Compiler
+### 1. Unified Content Database (`src/data/content.js`)
+All resume content, metadata, links, and system outputs are defined as clean structured JS objects in a single file: [content.js](src/data/content.js). No hardcoded resume text exists inside the visual components, making future updates (e.g. changing platforms or project parameters) completely stack-independent.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 2. 3D WebGL Pipeline Background (`src/components/Pipeline3D.jsx`)
+A custom 3D Canvas rendering a flowing data-node helix. The viewport camera smoothly tracks, rotates, and pans down this 3D pipeline matching the user's scroll progress via GSAP ScrollTrigger. Mouse movements generate subtle camera parallax shifts.
 
-## Expanding the Oxlint configuration
+### 3. Dynamic Hardware & Motion Fallbacks
+To ensure maximum performance across all hardware:
+- Bypasses WebGL canvas rendering on devices with screens `< 768px` or processors with `<= 4` hardware threads, falling back to a static cyber-grid CSS overlay.
+- Automatically disables motion and transitions if the user prefers reduced motion.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+---
+
+## 🛠️ Tech Stack & Integrations
+
+- **Core**: React 19 + Vite 8
+- **Styling**: Tailwind CSS v4
+- **3D Graphics**: Three.js + React Three Fiber (R3F)
+- **Animations**: GSAP (GreenSock) + ScrollTrigger
+- **Icons**: Lucide React (with custom inline SVG brand fallbacks)
+
+---
+
+## 💻 Getting Started Locally
+
+### Prerequisites
+Ensure you have Node.js installed.
+
+### Setup
+1. Clone the repository and navigate to the project directory:
+   ```bash
+   git clone https://github.com/ChareshReddy/My_Portfolio.git
+   cd My_Portfolio
+   ```
+2. Install the dependencies:
+   ```bash
+   npm install --legacy-peer-deps
+   ```
+3. Run the development server:
+   ```bash
+   npm run dev
+   ```
+4. Access the application at **`http://localhost:5173/`**.
+
+### Production Build
+To build the optimized static assets:
+```bash
+npm run build
+```
+The output will be built into the `dist/` directory, ready to deploy to Vercel, Netlify, or GitHub Pages.
