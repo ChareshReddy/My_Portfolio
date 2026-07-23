@@ -77,8 +77,8 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
     const p = lerpedProgress.current * (experience.length - 1);
     const offset = idx - p;
 
-    // Visibility range limit (only render nearest cards for high performance)
-    const isVisible = Math.abs(offset) < 1.35;
+    // Strict visibility check: hide card if it is far/opposite from active index
+    const isVisible = Math.abs(offset) < 0.8;
     cardRef.current.visible = isVisible;
 
     if (isVisible) {
@@ -106,7 +106,10 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
   useFrame(() => {
     const p = lerpedProgress.current * (experience.length - 1);
     const offset = idx - p;
-    const currentOpacity = Math.max(0, 1 - Math.abs(offset) * 1.55);
+    const dist = Math.abs(offset);
+    
+    // Sharp cross-fade: card goes completely transparent at dist >= 0.8 (opposite/inactive)
+    const currentOpacity = dist < 0.8 ? Math.pow((0.8 - dist) / 0.8, 1.8) : 0;
     setOpacity(currentOpacity);
   });
 
