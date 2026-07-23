@@ -1,82 +1,113 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Float } from '@react-three/drei';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 gsap.registerPlugin(ScrollTrigger);
 
-// Particle & Connection lines inside the 3D scene
+// Core Data Engineer Code Snippets
+const codeSnippets = [
+  "df.groupBy('region').agg(sum('sales'))",
+  "spark.read.format('delta').load()",
+  "WindowSpec.partitionBy('cust_id')",
+  "dbutils.fs.mv(source, target)",
+  "SELECT SUM(amount) FROM raw_sales",
+  "df.write.mode('overwrite').save()",
+  "spark.sql('OPTIMIZE gold.metrics')",
+  "df.filter(df.status == 'SUCCESS')",
+  "zOrderBY('transaction_date')",
+  "spark.read.json('lakehouse/raw')",
+  "schema = StructType([StructField...])",
+  "df.withColumn('load_date', current_date())",
+  "df.join(dim_df, 'product_id', 'left')",
+  "spark.conf.set('spark.shuffle.partitions', 200)",
+  "dbutils.notebook.run('etl_silver', 3600)",
+  "df.dropDuplicates(['transaction_id'])",
+  "deltaTable.alias('t').merge(df.alias('s'))",
+  "spark.readStream.format('cloudFiles').load()",
+  "df.cache().count()",
+  "SELECT * FROM silver.orders WHERE active=1"
+];
+
+// Pre-render code snippets onto canvas textures for hardware-accelerated 3D sprites
+function useCodeTextures() {
+  const textures = useMemo(() => {
+    return codeSnippets.map(text => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      ctx.font = 'bold 15px monospace';
+      const textWidth = Math.ceil(ctx.measureText(text).width);
+      canvas.width = textWidth + 12;
+      canvas.height = 28;
+      
+      // Clear background
+      ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Neon green/cyan text
+      ctx.font = 'bold 15px monospace';
+      const color = Math.random() > 0.5 ? '#22d3ee' : '#34d399';
+      ctx.fillStyle = color;
+      ctx.fillText(text, 6, 18);
+      
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = THREE.LinearFilter;
+      return texture;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      textures.forEach(t => t.dispose());
+    };
+  }, [textures]);
+
+  return textures;
+}
+
 function PipelineScene() {
   const { camera } = useThree();
   const sceneRef = useRef();
-  const pointsRef = useRef();
   const linesRef = useRef();
-  
-  // Mouse position tracker for interactive parallax
   const mouse = useRef({ x: 0, y: 0 });
+  const codeTextures = useCodeTextures();
 
-  // Canvas textures for glowing circular particles (bloom effect)
-  const cyanTexture = useMemo(() => {
-    const size = 64;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    const grad = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    grad.addColorStop(0.25, 'rgba(34, 211, 238, 0.85)'); // cyan core
-    grad.addColorStop(0.55, 'rgba(34, 211, 238, 0.25)'); // soft halo
-    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, size, size);
-    return new THREE.CanvasTexture(canvas);
-  }, []);
-
-  const emeraldTexture = useMemo(() => {
-    const size = 64;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    const grad = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
-    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
-    grad.addColorStop(0.25, 'rgba(52, 211, 153, 0.85)'); // emerald core
-    grad.addColorStop(0.55, 'rgba(52, 211, 153, 0.25)'); // soft halo
-    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, size, size);
-    return new THREE.CanvasTexture(canvas);
-  }, []);
-
-  // Generate data-nodes and paths
-  const { nodePositions, linePositions, packets } = useMemo(() => {
-    const nodeCount = 50;
+  // Generate node structures & connection line positions
+  const { nodeData, linePositions, packets } = useMemo(() => {
+    const nodeCount = 45;
     const positions = [];
-    const colors = [];
-    
-    // Generate nodes spread across a vertical pipeline cylinder space
+    const nodes = [];
+
+    // Generate node positions vertically down in a helix/spiral
     for (let i = 0; i < nodeCount; i++) {
-      const theta = (i / nodeCount) * Math.PI * 16; // spiral downwards
-      const radius = 3 + Math.random() * 2;
+      const theta = (i / nodeCount) * Math.PI * 14; // spiral downwards
+      const radius = 3.5 + Math.random() * 1.5;
       const x = Math.cos(theta) * radius;
-      const y = -i * 0.7 + 10; // spread from y=10 down to y=-25
+      const y = -i * 0.8 + 8; // spread vertically down to y=-28
       const z = Math.sin(theta) * radius;
+      
       positions.push(x, y, z);
+      
+      nodes.push({
+        pos: [x, y, z],
+        textureIdx: Math.floor(Math.random() * codeSnippets.length),
+        scale: 1.2 + Math.random() * 0.6,
+        opacity: 0.15 + Math.random() * 0.15 // low opacity to prevent text clashing
+      });
     }
 
-    // Connect nodes into pipeline lines
+    // Connect nodes into pipeline path (lines segments)
     const lineIndices = [];
     for (let i = 0; i < nodeCount - 1; i++) {
-      // Connect sequential nodes (forming a spiral pipeline)
       lineIndices.push(
         positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2],
         positions[(i + 1) * 3], positions[(i + 1) * 3 + 1], positions[(i + 1) * 3 + 2]
       );
       
-      // Connect to a random node nearby to make it look like a network graph
-      if (i < nodeCount - 3 && Math.random() > 0.6) {
+      if (i < nodeCount - 3 && Math.random() > 0.65) {
         const nextIdx = i + 3;
         lineIndices.push(
           positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2],
@@ -85,21 +116,21 @@ function PipelineScene() {
       }
     }
 
-    // Moving packets data structures
-    const packetCount = 40;
+    // Data packets properties
+    const packetCount = 30;
     const packetData = [];
     for (let i = 0; i < packetCount; i++) {
-      const startIndex = Math.floor(Math.random() * (nodeCount - 5));
+      const startIndex = Math.floor(Math.random() * (nodeCount - 3));
       packetData.push({
         startIdx: startIndex,
         endIdx: startIndex + 1,
         progress: Math.random(),
-        speed: 0.015 + Math.random() * 0.02
+        speed: 0.01 + Math.random() * 0.015
       });
     }
 
     return {
-      nodePositions: new Float32Array(positions),
+      nodeData: nodes,
       linePositions: new Float32Array(lineIndices),
       packets: packetData
     };
@@ -115,9 +146,8 @@ function PipelineScene() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Setup GSAP ScrollTrigger to move camera smoothly along the pipeline
+  // Setup GSAP camera scroll timeline scrub
   useEffect(() => {
-    // Initial camera placement
     camera.position.set(0, 8, 12);
     camera.lookAt(0, 0, 0);
 
@@ -126,17 +156,16 @@ function PipelineScene() {
         trigger: "body",
         start: "top top",
         end: "bottom bottom",
-        scrub: 1.2, // Smooth scrubbing
+        scrub: 1.2,
       }
     });
 
-    // Animate camera down the pipeline based on scroll progress
     tl.to(camera.position, { x: 2, y: 1.5, z: 9, ease: "none" })      // Hero -> About
-      .to(camera.position, { x: -3, y: -4.5, z: 10, ease: "none" })    // About -> Skills
-      .to(camera.position, { x: 3, y: -10.5, z: 8, ease: "none" })    // Skills -> Experience
-      .to(camera.position, { x: -2, y: -17.5, z: 11, ease: "none" })   // Experience -> Projects
-      .to(camera.position, { x: 0, y: -24.5, z: 9, ease: "none" })     // Projects -> Certifications
-      .to(camera.position, { x: 1, y: -30.5, z: 11, ease: "none" });    // Certifications -> Contact
+      .to(camera.position, { x: -3.5, y: -4.5, z: 10, ease: "none" })  // About -> Skills
+      .to(camera.position, { x: 3.5, y: -11.5, z: 8.5, ease: "none" }) // Skills -> Experience
+      .to(camera.position, { x: -2.5, y: -18.5, z: 11.5, ease: "none" }) // Experience -> Projects
+      .to(camera.position, { x: 0, y: -25.5, z: 9.5, ease: "none" })    // Projects -> Certifications
+      .to(camera.position, { x: 1, y: -31.5, z: 11, ease: "none" });   // Certifications -> Contact
 
     return () => {
       if (tl.scrollTrigger) tl.scrollTrigger.kill();
@@ -144,7 +173,6 @@ function PipelineScene() {
     };
   }, [camera]);
 
-  // Buffer geometries for moving packets
   const packetGeometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
     const pos = new Float32Array(packets.length * 3);
@@ -152,47 +180,33 @@ function PipelineScene() {
     return geo;
   }, [packets]);
 
-  // Frame tick animation loop
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
 
-    // 1. Mouse tilt Parallax on the scene container
+    // Mouse tilt Parallax
     if (sceneRef.current) {
       sceneRef.current.rotation.y += (mouse.current.x * 0.12 - sceneRef.current.rotation.y) * 0.05;
       sceneRef.current.rotation.x += (-mouse.current.y * 0.08 - sceneRef.current.rotation.x) * 0.05;
     }
 
-    // 2. Animate pipeline nodes pulse
-    if (pointsRef.current) {
-      const sizes = pointsRef.current.geometry.attributes.position.array;
-      // Subtle float vibration
-      pointsRef.current.position.y = Math.sin(time * 0.5) * 0.15;
-    }
-
-    // 3. Update flowing data packets along pipeline lines
+    // Update packets
     if (packetGeometry) {
       const positions = packetGeometry.attributes.position.array;
+      const maxNodes = nodeData.length;
       packets.forEach((pkt, i) => {
         pkt.progress += pkt.speed;
         if (pkt.progress >= 1) {
           pkt.progress = 0;
-          // Loop or shuffle target node
-          const maxNodes = nodePositions.length / 3;
           pkt.startIdx = Math.floor(Math.random() * (maxNodes - 2));
           pkt.endIdx = pkt.startIdx + 1;
         }
 
-        const sx = nodePositions[pkt.startIdx * 3];
-        const sy = nodePositions[pkt.startIdx * 3 + 1];
-        const sz = nodePositions[pkt.startIdx * 3 + 2];
+        const sPos = nodeData[pkt.startIdx].pos;
+        const ePos = nodeData[pkt.endIdx].pos;
 
-        const ex = nodePositions[pkt.endIdx * 3];
-        const ey = nodePositions[pkt.endIdx * 3 + 1];
-        const ez = nodePositions[pkt.endIdx * 3 + 2];
-
-        positions[i * 3] = sx + (ex - sx) * pkt.progress;
-        positions[i * 3 + 1] = sy + (ey - sy) * pkt.progress;
-        positions[i * 3 + 2] = sz + (ez - sz) * pkt.progress;
+        positions[i * 3] = sPos[0] + (ePos[0] - sPos[0]) * pkt.progress;
+        positions[i * 3 + 1] = sPos[1] + (ePos[1] - sPos[1]) * pkt.progress;
+        positions[i * 3 + 2] = sPos[2] + (ePos[2] - sPos[2]) * pkt.progress;
       });
       packetGeometry.attributes.position.needsUpdate = true;
     }
@@ -200,25 +214,23 @@ function PipelineScene() {
 
   return (
     <group ref={sceneRef}>
-      {/* 1. Node Network Points */}
-      <points ref={pointsRef}>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            args={[nodePositions, 3]}
+      {/* 1. Floating 3D Code Snippet Sprites (Replacing static dots) */}
+      {nodeData.map((node, i) => (
+        <sprite 
+          key={i} 
+          position={node.pos} 
+          scale={[node.scale * 1.5, node.scale * 0.5, 1]}
+        >
+          <spriteMaterial
+            attach="material"
+            map={codeTextures[node.textureIdx]}
+            transparent={true}
+            opacity={node.opacity}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
           />
-        </bufferGeometry>
-        <pointsMaterial
-          color="#22d3ee" // Cyan
-          size={0.35}
-          sizeAttenuation={true}
-          transparent={true}
-          opacity={0.8}
-          map={cyanTexture}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
-        />
-      </points>
+        </sprite>
+      ))}
 
       {/* 2. Connection Pipes (Line Segments) */}
       <lineSegments ref={linesRef}>
@@ -240,20 +252,15 @@ function PipelineScene() {
       <points geometry={packetGeometry}>
         <pointsMaterial
           color="#34d399" // Emerald
-          size={0.45}
+          size={0.25}
           sizeAttenuation={true}
           transparent={true}
-          opacity={0.95}
-          map={emeraldTexture}
-          depthWrite={false}
-          blending={THREE.AdditiveBlending}
+          opacity={0.9}
         />
       </points>
       
-      {/* Ambient lighting shifts */}
       <ambientLight intensity={0.4} />
       <directionalLight position={[5, 15, 5]} intensity={0.6} color="#22d3ee" />
-      <directionalLight position={[-5, -15, -5]} intensity={0.3} color="#10b981" />
     </group>
   );
 }
@@ -267,12 +274,10 @@ export default function Pipeline3D() {
     setUseFallback(isMobile || prefersReducedMotion);
   }, []);
 
-  // Avoid hydration flashes
   if (useFallback === null) {
     return <div className="fixed inset-0 z-0 bg-slate-950" />;
   }
 
-  // Fallback rendering: Render a lightweight, visually matching CSS grid & color blobs
   if (useFallback) {
     return (
       <div className="fixed inset-0 z-0 bg-slate-950 cyber-grid cyber-grid-dots overflow-hidden">
@@ -284,7 +289,6 @@ export default function Pipeline3D() {
 
   return (
     <div className="fixed inset-0 z-0 bg-[#020617] overflow-hidden pointer-events-none">
-      {/* Cyber Grid pattern behind the canvas */}
       <div className="absolute inset-0 cyber-grid opacity-30 pointer-events-none" />
       
       <Canvas
