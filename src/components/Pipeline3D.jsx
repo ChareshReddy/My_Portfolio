@@ -33,42 +33,37 @@ const codeSnippets = [
   "SELECT * FROM silver.orders WHERE active=1"
 ];
 
-// Pre-render code snippets onto canvas textures for hardware-accelerated 3D sprites
-function useCodeTextures() {
-  const textures = useMemo(() => {
-    return codeSnippets.map(text => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      ctx.font = 'bold 15px monospace';
-      const textWidth = Math.ceil(ctx.measureText(text).width);
-      canvas.width = textWidth + 12;
-      canvas.height = 28;
-      
-      // Clear background
-      ctx.fillStyle = 'rgba(0, 0, 0, 0)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Neon green/cyan text
-      ctx.font = 'bold 15px monospace';
-      const color = Math.random() > 0.5 ? '#22d3ee' : '#34d399';
-      ctx.fillStyle = color;
-      ctx.fillText(text, 6, 18);
-      
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.minFilter = THREE.LinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      return texture;
-    });
-  }, []);
+// Module-level cache to prevent HMR Hook Order changes and memory leaks
+let cachedTextures = null;
+function getCodeTextures() {
+  if (cachedTextures) return cachedTextures;
 
-  useEffect(() => {
-    return () => {
-      textures.forEach(t => t.dispose());
-    };
-  }, [textures]);
+  cachedTextures = codeSnippets.map(text => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    ctx.font = 'bold 15px monospace';
+    const textWidth = Math.ceil(ctx.measureText(text).width);
+    canvas.width = textWidth + 12;
+    canvas.height = 28;
+    
+    // Clear background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Neon green/cyan text
+    ctx.font = 'bold 15px monospace';
+    const color = Math.random() > 0.5 ? '#22d3ee' : '#34d399';
+    ctx.fillStyle = color;
+    ctx.fillText(text, 6, 18);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    return texture;
+  });
 
-  return textures;
+  return cachedTextures;
 }
 
 // 3D Experience Card plane using drei <Html transform occlude>
@@ -165,13 +160,40 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
           <ul className="space-y-3 text-xs sm:text-sm text-slate-400 leading-relaxed">
             {exp.achievements.map((ach, aIdx) => (
               <li key={aIdx} className="flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-cyan-500/60 flex-shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-4.5 h-4.5 text-cyan-500/60 flex-shrink-0 mt-0.5" />
                 <span>{ach}</span>
               </li>
             ))}
           </ul>
         </div>
       </Html>
+    </group>
+  );
+}
+
+// 3D Spinal Vertebral Column Segment
+function VertebraSegment3D({ pos, angle, isActive }) {
+  return (
+    <group position={pos} rotation={[0, 0, angle]}>
+      {/* Transverse Processes (lateral endpoints) */}
+      <mesh position={[-0.22, 0, 0]}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
+      </mesh>
+      <mesh position={[0.22, 0, 0]}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
+      </mesh>
+
+      {/* Vertebra Main Body Capsule */}
+      <mesh rotation={[0, 0, Math.PI / 2]}>
+        <capsuleGeometry args={[0.045, 0.28, 4, 8]} />
+        <meshStandardMaterial 
+          color={isActive ? "#22d3ee" : "#0f172a"} 
+          transparent={!isActive}
+          opacity={!isActive ? 0.35 : 1}
+        />
+      </mesh>
     </group>
   );
 }
@@ -282,7 +304,7 @@ function PipelineScene() {
   const sceneRef = useRef();
   const linesRef = useRef();
   const mouse = useRef({ x: 0, y: 0 });
-  const codeTextures = useCodeTextures();
+  const codeTextures = getCodeTextures(); // Hook-free globally cached textures load
 
   // Scroll Trigger trackers
   const globalScrollProgress = useRef(0);
