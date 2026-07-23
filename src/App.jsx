@@ -1,5 +1,6 @@
-import React from 'react';
-import Pipeline3D from './components/Pipeline3D';
+import React, { lazy, Suspense } from 'react';
+
+const Pipeline3D = lazy(() => import('./components/Pipeline3D'));
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import About from './components/About';
@@ -14,7 +15,9 @@ export default function App() {
   return (
     <div className="relative min-h-screen text-slate-100 selection:bg-cyan-500/30 selection:text-cyan-200">
       {/* Persistent 3D R3F Scroll-Driven Background */}
-      <Pipeline3D />
+      <Suspense fallback={null}>
+        <Pipeline3D />
+      </Suspense>
 
       {/* Floating Sticky Navigation */}
       <Navbar />
