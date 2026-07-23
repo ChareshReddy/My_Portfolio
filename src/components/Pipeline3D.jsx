@@ -17,6 +17,39 @@ function PipelineScene() {
   // Mouse position tracker for interactive parallax
   const mouse = useRef({ x: 0, y: 0 });
 
+  // Canvas textures for glowing circular particles (bloom effect)
+  const cyanTexture = useMemo(() => {
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.25, 'rgba(34, 211, 238, 0.85)'); // cyan core
+    grad.addColorStop(0.55, 'rgba(34, 211, 238, 0.25)'); // soft halo
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    return new THREE.CanvasTexture(canvas);
+  }, []);
+
+  const emeraldTexture = useMemo(() => {
+    const size = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const grad = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    grad.addColorStop(0.25, 'rgba(52, 211, 153, 0.85)'); // emerald core
+    grad.addColorStop(0.55, 'rgba(52, 211, 153, 0.25)'); // soft halo
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size, size);
+    return new THREE.CanvasTexture(canvas);
+  }, []);
+
   // Generate data-nodes and paths
   const { nodePositions, linePositions, packets } = useMemo(() => {
     const nodeCount = 50;
@@ -177,10 +210,13 @@ function PipelineScene() {
         </bufferGeometry>
         <pointsMaterial
           color="#22d3ee" // Cyan
-          size={0.16}
+          size={0.35}
           sizeAttenuation={true}
           transparent={true}
-          opacity={0.7}
+          opacity={0.8}
+          map={cyanTexture}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
         />
       </points>
 
@@ -204,10 +240,13 @@ function PipelineScene() {
       <points geometry={packetGeometry}>
         <pointsMaterial
           color="#34d399" // Emerald
-          size={0.25}
+          size={0.45}
           sizeAttenuation={true}
           transparent={true}
-          opacity={0.9}
+          opacity={0.95}
+          map={emeraldTexture}
+          depthWrite={false}
+          blending={THREE.AdditiveBlending}
         />
       </points>
       
