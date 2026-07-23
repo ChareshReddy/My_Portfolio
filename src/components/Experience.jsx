@@ -25,6 +25,9 @@ export default function Experience() {
   }, []);
 
   useEffect(() => {
+    // Initialize the window progress flag
+    window.experienceScrollProgress = 0;
+
     if (isMobile || isMobile === null) return;
 
     const section = sectionRef.current;
@@ -38,7 +41,10 @@ export default function Experience() {
       pin: true,
       scrub: true,
       onUpdate: (self) => {
-        // Calculate current active index
+        // Publish scroll progress globally for R3F Canvas reading
+        window.experienceScrollProgress = self.progress;
+
+        // Calculate current active card index
         const progress = self.progress;
         const idx = Math.min(
           Math.floor(progress * experience.length),
@@ -50,6 +56,7 @@ export default function Experience() {
 
     return () => {
       pinTrigger.kill();
+      window.experienceScrollProgress = 0;
     };
   }, [isMobile]);
 

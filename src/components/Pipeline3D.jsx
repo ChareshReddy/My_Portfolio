@@ -90,15 +90,13 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
       const angle = offset * 1.5; // spacing orbit angle
       const radius = 3.6;
       
-      // Coordinate placement relative to the viewport
+      // Swing cards left-to-right around center focal point
       cardRef.current.position.x = -1.35 + Math.sin(angle) * radius;
       cardRef.current.position.z = Math.cos(angle) * radius - 3.6;
       cardRef.current.position.y = -11.5 - offset * 0.45;
       
-      // Rotation tilt to face-on the camera when active
+      // Rotation tilt to face camera when active, and swing out on rotation
       cardRef.current.rotation.y = -angle * 0.85;
-      
-      // Slight mechanical roll/pitch
       cardRef.current.rotation.x = Math.abs(offset) * 0.05;
 
       // Scale down slightly when far away
@@ -107,7 +105,6 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
     }
   });
 
-  // Calculate dynamic opacity styling outside for DOM element
   const [opacity, setOpacity] = useState(0);
 
   useFrame(() => {
@@ -129,7 +126,8 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
           pointerEvents: opacity > 0.4 ? 'auto' : 'none'
         }}
       >
-        <div className="w-[450px] p-6 glass-panel border border-cyan-500/20 rounded-2xl text-left select-none hover:border-cyan-500/35 transition-colors shadow-2xl relative">
+        {/* Added solid black slate background (bg-slate-950/95) and heavy backdrop blur (backdrop-blur-lg) to block snippets */}
+        <div className="w-[450px] p-6 bg-slate-950/95 backdrop-blur-lg border border-cyan-500/20 rounded-2xl text-left select-none hover:border-cyan-500/35 transition-colors shadow-2xl relative">
           
           {/* Header Badge */}
           <div className="flex items-center justify-between gap-2.5 mb-4">
@@ -178,69 +176,69 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
   );
 }
 
-// 3D Spinal Vertebral Column Segment
-function VertebraSegment3D({ pos, angle, isActive }) {
-  return (
-    <group position={pos} rotation={[0, 0, angle]}>
-      {/* Transverse Processes (lateral endpoints) */}
-      <mesh position={[-0.22, 0, 0]}>
-        <sphereGeometry args={[0.02, 8, 8]} />
-        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
-      </mesh>
-      <mesh position={[0.22, 0, 0]}>
-        <sphereGeometry args={[0.02, 8, 8]} />
-        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
-      </mesh>
-
-      {/* Vertebra Main Body Capsule */}
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <capsuleGeometry args={[0.045, 0.28, 4, 8]} />
-        <meshBasicMaterial 
-          color={isActive ? "#22d3ee" : "#0f172a"} 
-          transparent={!isActive}
-          opacity={!isActive ? 0.35 : 1}
-        />
-      </mesh>
-    </group>
-  );
-}
-
-// 3D Vertebral Spine Container
+// 3D Vertebral Spine Container (Using actual Three.js curve and cylinder geometry)
 function Spine3D({ lerpedProgress }) {
   const spineRef = useRef();
   const numSegs = 16;
+  const height = 4.0;
+  const sway = 0.28;
 
-  // Pre-calculate anatomical 3D S-curve vertices
-  const spineSegments = useMemo(() => {
-    const segments = [];
-    const height = 3.6; // height span in 3D
-    const sway = 0.22;  // sway curvature width
-    
+  // 1. Create a THREE.CatmullRomCurve3 S-curve path
+  const curve = useMemo(() => {
+    const points = [];
+    for (let i = 0; i < 10; i++) {
+      const t = i / 9;
+      const y = 2.0 - t * height;
+      const x = Math.sin(t * Math.PI * 2) * sway;
+      const z = Math.cos(t * Math.PI * 2) * 0.08;
+      points.push(new THREE.Vector3(x, y, z));
+    }
+    return new THREE.CatmullRomCurve3(points);
+  }, []);
+
+  // 2. Generate vertebra mesh data placed at intervals along the tangent of the curve
+  const vertebraData = useMemo(() => {
+    const list = [];
     for (let i = 0; i < numSegs; i++) {
       const t = i / (numSegs - 1);
-      const y = 1.8 - t * height;
-      const x = Math.sin(t * Math.PI * 2) * sway;
-      const z = Math.cos(t * Math.PI * 2) * 0.08; // subtle depth S-curve
+      const pos = curve.getPointAt(t);
+      const tangent = curve.getTangentAt(t).normalize();
       
-      const dx = sway * Math.PI * 2 * Math.cos(t * Math.PI * 2);
-      const dy = -height;
-      const angle = Math.atan2(dx, dy);
+      // Quaternion math to align cylinder up vector with curve tangent
+      const up = new THREE.Vector3(0, 1, 0);
+      const quaternion = new THREE.Quaternion().setFromUnitVectors(up, tangent);
+      const euler = new THREE.Euler().setFromQuaternion(quaternion);
       
-      segments.push({ pos: [x, y, z], angle });
+      list.push({
+        pos: [pos.x, pos.y, pos.z],
+        rot: [euler.x, euler.y, euler.z]
+      });
     }
-    return segments;
-  }, []);
+    return list;
+  }, [curve]);
 
   useFrame(() => {
     if (!spineRef.current) return;
-    // Rotate spine continuously based on scroll progress
+    // Rotate the entire spine group as you scroll
     spineRef.current.rotation.y = lerpedProgress.current * Math.PI * 4;
   });
 
   return (
     <group ref={spineRef} position={[2.0, -11.5, -0.6]}>
-      {spineSegments.map((seg, idx) => {
-        // Highlight active vertebra segment based on progress
+      {/* Main Spinal Cord Core Column (TubeGeometry along the S-curve) */}
+      <mesh>
+        <tubeGeometry args={[curve, 64, 0.02, 8, false]} />
+        <meshStandardMaterial 
+          color="#10b981" 
+          emissive="#10b981" 
+          emissiveIntensity={0.6} 
+          transparent={true} 
+          opacity={0.4} 
+        />
+      </mesh>
+
+      {/* Vertebra segments (Individual 3D cylinders catching light) */}
+      {vertebraData.map((vert, idx) => {
         const activeSegIdx = Math.min(
           Math.floor(lerpedProgress.current * numSegs),
           numSegs - 1
@@ -248,12 +246,31 @@ function Spine3D({ lerpedProgress }) {
         const isActive = activeSegIdx === idx;
         
         return (
-          <VertebraSegment3D
-            key={idx}
-            pos={seg.pos}
-            angle={seg.angle}
-            isActive={isActive}
-          />
+          <group key={idx} position={vert.pos} rotation={vert.rot}>
+            {/* Vertebral disc cylinder */}
+            <mesh>
+              <cylinderGeometry args={[0.13, 0.15, 0.08, 12]} />
+              <meshStandardMaterial 
+                color={isActive ? "#22d3ee" : "#0f172a"} 
+                emissive={isActive ? "#22d3ee" : "#1e293b"}
+                emissiveIntensity={isActive ? 1.8 : 0.2}
+                transparent={!isActive}
+                opacity={!isActive ? 0.5 : 1.0}
+                roughness={0.15}
+                metalness={0.8}
+              />
+            </mesh>
+
+            {/* Vertebra Lateral processes (Short horizontal arms) */}
+            <mesh position={[-0.2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.015, 0.015, 0.12, 6]} />
+              <meshStandardMaterial color={isActive ? "#22d3ee" : "#334155"} />
+            </mesh>
+            <mesh position={[0.2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.015, 0.015, 0.12, 6]} />
+              <meshStandardMaterial color={isActive ? "#22d3ee" : "#334155"} />
+            </mesh>
+          </group>
         );
       })}
     </group>
@@ -267,7 +284,7 @@ function PipelineScene() {
   const mouse = useRef({ x: 0, y: 0 });
   const codeTextures = useCodeTextures();
 
-  // Scroll Trigger trackers for global and experience sections
+  // Scroll Trigger trackers
   const globalScrollProgress = useRef(0);
   const expScrollProgress = useRef(0);
   const lerpedExpProgress = useRef(0);
@@ -278,21 +295,19 @@ function PipelineScene() {
     const positions = [];
     const nodes = [];
 
-    // Generate node positions vertically down in a helix/spiral
+    // Spawns nodes strictly in background depth plane (z <= -6.5) to fix overlap collision
     for (let i = 0; i < nodeCount; i++) {
-      const theta = (i / nodeCount) * Math.PI * 14;
-      const radius = 3.5 + Math.random() * 1.5;
-      const x = Math.cos(theta) * radius;
-      const y = -i * 0.8 + 8;
-      const z = Math.sin(theta) * radius;
+      const x = (Math.random() - 0.5) * 15.0; // horizontal spread
+      const y = -i * 0.8 + 8; // vertical spread
+      const z = -6.5 - Math.random() * 8.0; // depth plane strictly behind cards
       
       positions.push(x, y, z);
       
       nodes.push({
         pos: [x, y, z],
         textureIdx: Math.floor(Math.random() * codeSnippets.length),
-        scale: 1.2 + Math.random() * 0.6,
-        opacity: 0.15 + Math.random() * 0.15
+        scale: 1.3 + Math.random() * 0.7,
+        opacity: 0.1 + Math.random() * 0.12 // faint opacity
       });
     }
 
@@ -343,7 +358,7 @@ function PipelineScene() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Bind ScrollTriggers for camera timeline and experience scroll
+  // Bind ScrollTriggers for camera timeline
   useEffect(() => {
     camera.position.set(0, 8, 12);
     camera.lookAt(0, 0, 0);
@@ -363,26 +378,14 @@ function PipelineScene() {
 
     globalTL.to(camera.position, { x: 2, y: 1.5, z: 9, ease: "none" })      // Hero -> About
       .to(camera.position, { x: -3.5, y: -4.5, z: 10, ease: "none" })  // About -> Skills
-      .to(camera.position, { x: 3.5, y: -11.5, z: 8.5, ease: "none" }) // Skills -> Experience (Camera focuses here)
+      .to(camera.position, { x: 3.5, y: -11.5, z: 8.5, ease: "none" }) // Skills -> Experience
       .to(camera.position, { x: -2.5, y: -18.5, z: 11.5, ease: "none" }) // Experience -> Projects
       .to(camera.position, { x: 0, y: -25.5, z: 9.5, ease: "none" })    // Projects -> Certifications
       .to(camera.position, { x: 1, y: -31.5, z: 11, ease: "none" });   // Certifications -> Contact
 
-    // Experience-specific Pinned ScrollTrigger
-    const expTrigger = ScrollTrigger.create({
-      trigger: "#experience",
-      start: "top top",
-      end: "+=200%",
-      scrub: true,
-      onUpdate: (self) => {
-        expScrollProgress.current = self.progress;
-      }
-    });
-
     return () => {
       if (globalTL.scrollTrigger) globalTL.scrollTrigger.kill();
       globalTL.kill();
-      expTrigger.kill();
     };
   }, [camera]);
 
@@ -393,11 +396,24 @@ function PipelineScene() {
     return geo;
   }, [packets]);
 
+  // Dev log reference check
+  const lastLoggedProgress = useRef(-1);
+
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
 
-    // Lerp experience scroll progress for smooth transition motions
+    // Capture progress dynamically from window global (populated by Experience ScrollTrigger)
+    const progressVal = window.experienceScrollProgress || 0;
+    expScrollProgress.current = progressVal;
+
+    // Smooth lerp progress
     lerpedExpProgress.current += (expScrollProgress.current - lerpedExpProgress.current) * 0.08;
+
+    // Log progress every 5% changes to confirm binding works in dev console
+    if (Math.abs(lerpedExpProgress.current - lastLoggedProgress.current) > 0.05) {
+      console.log(`[R3F Experience3D] Scroll Progress: ${lerpedExpProgress.current.toFixed(3)}, Spine Orbit rotation.y: ${(lerpedExpProgress.current * Math.PI * 4).toFixed(3)}`);
+      lastLoggedProgress.current = lerpedExpProgress.current;
+    }
 
     // Mouse tilt Parallax
     if (sceneRef.current) {
@@ -430,7 +446,7 @@ function PipelineScene() {
 
   return (
     <group ref={sceneRef}>
-      {/* 1. Floating 3D Code Snippet Sprites */}
+      {/* 1. Floating 3D Code Snippet Sprites (Restricted to background plane) */}
       {nodeData.map((node, i) => (
         <sprite 
           key={i} 
@@ -448,7 +464,7 @@ function PipelineScene() {
         </sprite>
       ))}
 
-      {/* 2. Connection Pipes */}
+      {/* 2. Connection Pipes (Background restricted) */}
       <lineSegments ref={linesRef}>
         <bufferGeometry>
           <bufferAttribute
@@ -475,7 +491,7 @@ function PipelineScene() {
         />
       </points>
 
-      {/* 4. Experience 3D orbit carousel nodes */}
+      {/* 4. Experience 3D orbiting HTML cards */}
       <group>
         {experience.map((exp, idx) => (
           <ExperienceCard3D
@@ -487,7 +503,7 @@ function PipelineScene() {
         ))}
       </group>
 
-      {/* 5. 3D Spine column structure */}
+      {/* 5. Real 3D Vertebral Spine column structure */}
       <Spine3D lerpedProgress={lerpedExpProgress} />
       
       <ambientLight intensity={0.4} />
