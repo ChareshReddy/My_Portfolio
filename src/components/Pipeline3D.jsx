@@ -230,13 +230,13 @@ export default function Pipeline3D() {
 
   // Avoid hydration flashes
   if (useFallback === null) {
-    return <div className="fixed inset-0 -z-50 bg-slate-950" />;
+    return <div className="fixed inset-0 z-0 bg-slate-950" />;
   }
 
   // Fallback rendering: Render a lightweight, visually matching CSS grid & color blobs
   if (useFallback) {
     return (
-      <div className="fixed inset-0 -z-50 bg-slate-950 cyber-grid cyber-grid-dots overflow-hidden">
+      <div className="fixed inset-0 z-0 bg-slate-950 cyber-grid cyber-grid-dots overflow-hidden">
         <div className="absolute top-[-10%] left-[-15%] w-[80vw] h-[80vw] rounded-full bg-cyan-900/10 blur-[130px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-15%] w-[80vw] h-[80vw] rounded-full bg-emerald-900/10 blur-[130px] pointer-events-none" />
       </div>
@@ -244,7 +244,7 @@ export default function Pipeline3D() {
   }
 
   return (
-    <div className="fixed inset-0 -z-50 bg-[#020617] overflow-hidden pointer-events-none">
+    <div className="fixed inset-0 z-0 bg-[#020617] overflow-hidden pointer-events-none">
       {/* Cyber Grid pattern behind the canvas */}
       <div className="absolute inset-0 cyber-grid opacity-30 pointer-events-none" />
       
