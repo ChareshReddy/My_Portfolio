@@ -77,22 +77,22 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
     const p = lerpedProgress.current * (experience.length - 1);
     const offset = idx - p;
 
-    // Strict visibility check: hide card if it is far/opposite from active index
-    const isVisible = Math.abs(offset) < 0.8;
+    // Visibility range limit (fits the 3-card orbit curve visual in screenshots)
+    const isVisible = Math.abs(offset) < 1.1;
     cardRef.current.visible = isVisible;
 
     if (isVisible) {
       const angle = idx * 1.5; // fixed angle position inside group
-      const radius = 3.6;
+      const radius = 3.2;
       
       // Card coordinates relative to parent group
       cardRef.current.position.x = Math.sin(angle) * radius;
       cardRef.current.position.z = Math.cos(angle) * radius;
       cardRef.current.position.y = -offset * 0.45;
       
-      // Face the camera: compensate group rotation Y and apply off-center gaze offset (0.36 rad)
+      // Face camera: group Y-rotation is offset, we compensate here to billboard the card
       const groupRotY = -lerpedProgress.current * Math.PI * 1.2;
-      cardRef.current.rotation.y = 0.36 - groupRotY;
+      cardRef.current.rotation.y = -groupRotY;
       cardRef.current.rotation.x = Math.abs(offset) * 0.08;
 
       // Scale down slightly when far away
@@ -108,8 +108,8 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
     const offset = idx - p;
     const dist = Math.abs(offset);
     
-    // Sharp cross-fade: card goes completely transparent at dist >= 0.8 (opposite/inactive)
-    const currentOpacity = dist < 0.8 ? Math.pow((0.8 - dist) / 0.8, 1.8) : 0;
+    // Sharp cross-fade: card goes completely transparent when rotated to the opposite side
+    const currentOpacity = dist < 1.1 ? Math.pow((1.1 - dist) / 1.1, 1.8) : 0;
     setOpacity(currentOpacity);
   });
 
@@ -175,28 +175,54 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
   );
 }
 
-// 3D Spinal Vertebral Column Segment
+// 3D Spinal Vertebra Segment (Biological detailing using multiple primitives matching reference screenshot)
 function VertebraSegment3D({ pos, angle, isActive }) {
+  const material = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: isActive ? "#22d3ee" : "#0f172a",
+      emissive: isActive ? "#22d3ee" : "#1e293b",
+      emissiveIntensity: isActive ? 2.5 : 0.25,
+      roughness: 0.2,
+      metalness: 0.85,
+      transparent: !isActive,
+      opacity: !isActive ? 0.65 : 1.0
+    });
+  }, [isActive]);
+
   return (
     <group position={pos} rotation={[0, 0, angle]}>
-      {/* Transverse Processes (lateral endpoints) */}
-      <mesh position={[-0.22, 0, 0]}>
-        <sphereGeometry args={[0.02, 8, 8]} />
-        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
-      </mesh>
-      <mesh position={[0.22, 0, 0]}>
-        <sphereGeometry args={[0.02, 8, 8]} />
-        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
+      {/* 1. Central Vertebral Body Disc */}
+      <mesh>
+        <cylinderGeometry args={[0.22, 0.24, 0.12, 16]} />
+        <primitive object={material} />
       </mesh>
 
-      {/* Vertebra Main Body Capsule */}
-      <mesh rotation={[0, 0, Math.PI / 2]}>
-        <capsuleGeometry args={[0.045, 0.28, 4, 8]} />
-        <meshStandardMaterial 
-          color={isActive ? "#22d3ee" : "#0f172a"} 
-          transparent={!isActive}
-          opacity={!isActive ? 0.35 : 1}
-        />
+      {/* 2. Left Transverse Process Wing */}
+      <mesh position={[-0.32, 0, 0]} rotation={[0, 0.2, 0]}>
+        <boxGeometry args={[0.22, 0.05, 0.1]} />
+        <primitive object={material} />
+      </mesh>
+
+      {/* 3. Right Transverse Process Wing */}
+      <mesh position={[0.32, 0, 0]} rotation={[0, -0.2, 0]}>
+        <boxGeometry args={[0.22, 0.05, 0.1]} />
+        <primitive object={material} />
+      </mesh>
+
+      {/* 4. Spinous Process (Spinal rear protrusion) */}
+      <mesh position={[0, 0, -0.22]} rotation={[0.2, 0, 0]}>
+        <boxGeometry args={[0.08, 0.08, 0.25]} />
+        <primitive object={material} />
+      </mesh>
+
+      {/* Lateral endpoint process nodes */}
+      <mesh position={[-0.43, 0, 0]}>
+        <sphereGeometry args={[0.025, 8, 8]} />
+        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
+      </mesh>
+      <mesh position={[0.43, 0, 0]}>
+        <sphereGeometry args={[0.025, 8, 8]} />
+        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
       </mesh>
     </group>
   );
@@ -206,15 +232,15 @@ function VertebraSegment3D({ pos, angle, isActive }) {
 function Spine3D({ lerpedProgress }) {
   const spineRef = useRef();
   const numSegs = 16;
-  const height = 4.0;
-  const sway = 0.28;
+  const height = 4.2;
+  const sway = 0.24;
 
   // 1. Create a THREE.CatmullRomCurve3 S-curve path
   const curve = useMemo(() => {
     const points = [];
     for (let i = 0; i < 10; i++) {
       const t = i / 9;
-      const y = 2.0 - t * height;
+      const y = 2.1 - t * height;
       const x = Math.sin(t * Math.PI * 2) * sway;
       const z = Math.cos(t * Math.PI * 2) * 0.08;
       points.push(new THREE.Vector3(x, y, z));
@@ -263,7 +289,7 @@ function Spine3D({ lerpedProgress }) {
         />
       </mesh>
 
-      {/* Vertebra segments (Individual 3D cylinders catching light) */}
+      {/* Vertebra segments (Individual 3D biological vertebral models catching light) */}
       {vertebraData.map((vert, idx) => {
         const activeSegIdx = Math.min(
           Math.floor(lerpedProgress.current * numSegs),
@@ -272,30 +298,12 @@ function Spine3D({ lerpedProgress }) {
         const isActive = activeSegIdx === idx;
         
         return (
-          <group key={idx} position={vert.pos} rotation={vert.rot}>
-            <mesh>
-              <cylinderGeometry args={[0.13, 0.15, 0.08, 12]} />
-              <meshStandardMaterial 
-                color={isActive ? "#22d3ee" : "#0f172a"} 
-                emissive={isActive ? "#22d3ee" : "#1e293b"}
-                emissiveIntensity={isActive ? 1.8 : 0.2}
-                transparent={!isActive}
-                opacity={!isActive ? 0.5 : 1.0}
-                roughness={0.15}
-                metalness={0.8}
-              />
-            </mesh>
-
-            {/* Vertebra Transverse processes */}
-            <mesh position={[-0.2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.015, 0.015, 0.12, 6]} />
-              <meshStandardMaterial color={isActive ? "#22d3ee" : "#334155"} />
-            </mesh>
-            <mesh position={[0.2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-              <cylinderGeometry args={[0.015, 0.015, 0.12, 6]} />
-              <meshStandardMaterial color={isActive ? "#22d3ee" : "#334155"} />
-            </mesh>
-          </group>
+          <VertebraSegment3D
+            key={idx}
+            pos={vert.pos}
+            angle={vert.rot[2]} // Z rotation alignment
+            isActive={isActive}
+          />
         );
       })}
     </group>
@@ -403,7 +411,7 @@ function PipelineScene() {
 
     globalTL.to(camera.position, { x: 2, y: 1.5, z: 9, ease: "none" })      // Hero -> About
       .to(camera.position, { x: -3.5, y: -4.5, z: 10, ease: "none" })  // About -> Skills
-      .to(camera.position, { x: 3.5, y: -11.5, z: 8.5, ease: "none" }) // Skills -> Experience (Experience focuses at y=-11.5)
+      .to(camera.position, { x: 0, y: -11.5, z: 8.5, ease: "none" })  // Skills -> Experience (Centered camera at x=0 matching reference!)
       .to(camera.position, { x: -2.5, y: -18.5, z: 11.5, ease: "none" }) // Experience -> Projects
       .to(camera.position, { x: 0, y: -25.5, z: 9.5, ease: "none" })    // Projects -> Certifications
       .to(camera.position, { x: 1, y: -31.5, z: 11, ease: "none" });   // Certifications -> Contact
