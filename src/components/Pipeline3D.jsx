@@ -82,17 +82,18 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
     cardRef.current.visible = isVisible;
 
     if (isVisible) {
-      const angle = offset * 1.5; // spacing orbit angle
+      const angle = idx * 1.5; // fixed angle position inside group
       const radius = 3.6;
       
-      // Swing cards left-to-right around center focal point
-      cardRef.current.position.x = -1.35 + Math.sin(angle) * radius;
-      cardRef.current.position.z = Math.cos(angle) * radius - 3.6;
-      cardRef.current.position.y = -11.5 - offset * 0.45;
+      // Card coordinates relative to parent group
+      cardRef.current.position.x = Math.sin(angle) * radius;
+      cardRef.current.position.z = Math.cos(angle) * radius;
+      cardRef.current.position.y = -offset * 0.45;
       
-      // Rotation tilt to face camera when active, and swing out on rotation
-      cardRef.current.rotation.y = -angle * 0.85;
-      cardRef.current.rotation.x = Math.abs(offset) * 0.05;
+      // Face the camera: compensate group rotation Y and apply off-center gaze offset (0.36 rad)
+      const groupRotY = -lerpedProgress.current * Math.PI * 1.2;
+      cardRef.current.rotation.y = 0.36 - groupRotY;
+      cardRef.current.rotation.x = Math.abs(offset) * 0.08;
 
       // Scale down slightly when far away
       const scale = 1 - Math.abs(offset) * 0.22;
@@ -121,7 +122,7 @@ function ExperienceCard3D({ exp, idx, lerpedProgress }) {
           pointerEvents: opacity > 0.4 ? 'auto' : 'none'
         }}
       >
-        {/* Added solid black slate background (bg-slate-950/95) and heavy backdrop blur (backdrop-blur-lg) to block snippets */}
+        {/* Solid dark panel backdrop + blur to completely block background code text */}
         <div className="w-[450px] p-6 bg-slate-950/95 backdrop-blur-lg border border-cyan-500/20 rounded-2xl text-left select-none hover:border-cyan-500/35 transition-colors shadow-2xl relative">
           
           {/* Header Badge */}
@@ -241,13 +242,13 @@ function Spine3D({ lerpedProgress }) {
 
   useFrame(() => {
     if (!spineRef.current) return;
-    // Rotate the entire spine group as you scroll
+    // Rotate the spine locally on its vertical axis as we scroll
     spineRef.current.rotation.y = lerpedProgress.current * Math.PI * 4;
   });
 
   return (
-    <group ref={spineRef} position={[2.0, -11.5, -0.6]}>
-      {/* Main Spinal Cord Core Column (TubeGeometry along the S-curve) */}
+    <group ref={spineRef} position={[0, 0, 0]}>
+      {/* Main Spinal Column Core (TubeGeometry along the S-curve) */}
       <mesh>
         <tubeGeometry args={[curve, 64, 0.02, 8, false]} />
         <meshStandardMaterial 
@@ -269,7 +270,6 @@ function Spine3D({ lerpedProgress }) {
         
         return (
           <group key={idx} position={vert.pos} rotation={vert.rot}>
-            {/* Vertebral disc cylinder */}
             <mesh>
               <cylinderGeometry args={[0.13, 0.15, 0.08, 12]} />
               <meshStandardMaterial 
@@ -283,7 +283,7 @@ function Spine3D({ lerpedProgress }) {
               />
             </mesh>
 
-            {/* Vertebra Lateral processes (Short horizontal arms) */}
+            {/* Vertebra Transverse processes */}
             <mesh position={[-0.2, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
               <cylinderGeometry args={[0.015, 0.015, 0.12, 6]} />
               <meshStandardMaterial color={isActive ? "#22d3ee" : "#334155"} />
@@ -304,7 +304,7 @@ function PipelineScene() {
   const sceneRef = useRef();
   const linesRef = useRef();
   const mouse = useRef({ x: 0, y: 0 });
-  const codeTextures = getCodeTextures(); // Hook-free globally cached textures load
+  const codeTextures = getCodeTextures(); // Hook-free cached texture mapping
 
   // Scroll Trigger trackers
   const globalScrollProgress = useRef(0);
@@ -329,7 +329,7 @@ function PipelineScene() {
         pos: [x, y, z],
         textureIdx: Math.floor(Math.random() * codeSnippets.length),
         scale: 1.3 + Math.random() * 0.7,
-        opacity: 0.1 + Math.random() * 0.12 // faint opacity
+        opacity: 0.1 + Math.random() * 0.12
       });
     }
 
@@ -400,7 +400,7 @@ function PipelineScene() {
 
     globalTL.to(camera.position, { x: 2, y: 1.5, z: 9, ease: "none" })      // Hero -> About
       .to(camera.position, { x: -3.5, y: -4.5, z: 10, ease: "none" })  // About -> Skills
-      .to(camera.position, { x: 3.5, y: -11.5, z: 8.5, ease: "none" }) // Skills -> Experience
+      .to(camera.position, { x: 3.5, y: -11.5, z: 8.5, ease: "none" }) // Skills -> Experience (Experience focuses at y=-11.5)
       .to(camera.position, { x: -2.5, y: -18.5, z: 11.5, ease: "none" }) // Experience -> Projects
       .to(camera.position, { x: 0, y: -25.5, z: 9.5, ease: "none" })    // Projects -> Certifications
       .to(camera.position, { x: 1, y: -31.5, z: 11, ease: "none" });   // Certifications -> Contact
@@ -418,20 +418,23 @@ function PipelineScene() {
     return geo;
   }, [packets]);
 
-  // Dev log reference check
+  // Dev progress log reference
   const lastLoggedProgress = useRef(-1);
 
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
 
-    // Capture progress dynamically from window global (populated by Experience ScrollTrigger)
+    // Dynamically look at the center of the active vertical section to keep R3F Canvas view level
+    camera.lookAt(0, camera.position.y, 0);
+
+    // Capture experience scroll progress dynamically from window global
     const progressVal = window.experienceScrollProgress || 0;
     expScrollProgress.current = progressVal;
 
-    // Smooth lerp progress
+    // Smooth lerp experience scroll progress
     lerpedExpProgress.current += (expScrollProgress.current - lerpedExpProgress.current) * 0.08;
 
-    // Log progress every 5% changes to confirm binding works in dev console
+    // Log progress metrics to verify connection works correctly
     if (Math.abs(lerpedExpProgress.current - lastLoggedProgress.current) > 0.05) {
       console.log(`[R3F Experience3D] Scroll Progress: ${lerpedExpProgress.current.toFixed(3)}, Spine Orbit rotation.y: ${(lerpedExpProgress.current * Math.PI * 4).toFixed(3)}`);
       lastLoggedProgress.current = lerpedExpProgress.current;
@@ -513,20 +516,25 @@ function PipelineScene() {
         />
       </points>
 
-      {/* 4. Experience 3D orbiting HTML cards */}
-      <group>
-        {experience.map((exp, idx) => (
-          <ExperienceCard3D
-            key={idx}
-            idx={idx}
-            exp={exp}
-            lerpedProgress={lerpedExpProgress}
-          />
-        ))}
-      </group>
+      {/* 4. Experience 3D orbit carousel nodes (Centered around central spine axis) */}
+      <group position={[0, -11.5, -0.6]}>
+        
+        {/* Real 3D Vertebral Spine column structure (Central Axis) */}
+        <Spine3D lerpedProgress={lerpedExpProgress} />
 
-      {/* 5. Real 3D Vertebral Spine column structure */}
-      <Spine3D lerpedProgress={lerpedExpProgress} />
+        {/* Orbiting group swinging cards around central spine axis */}
+        <group rotation={[0, -lerpedExpProgress.current * Math.PI * 1.2, 0]}>
+          {experience.map((exp, idx) => (
+            <ExperienceCard3D
+              key={idx}
+              idx={idx}
+              exp={exp}
+              lerpedProgress={lerpedExpProgress}
+            />
+          ))}
+        </group>
+
+      </group>
       
       <ambientLight intensity={0.4} />
       <directionalLight position={[5, 15, 5]} intensity={0.6} color="#22d3ee" />
