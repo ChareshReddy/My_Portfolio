@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { Calendar, MapPin, Terminal, CheckCircle2 } from 'lucide-react';
+import { experience } from '../data/content';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -68,12 +71,206 @@ function useCodeTextures() {
   return textures;
 }
 
+// 3D Experience Card plane using drei <Html transform occlude>
+function ExperienceCard3D({ exp, idx, lerpedProgress }) {
+  const cardRef = useRef();
+
+  useFrame(() => {
+    if (!cardRef.current) return;
+    
+    // Position/rotation orbital formulas driven by scroll progress (N-1 active phases)
+    const p = lerpedProgress.current * (experience.length - 1);
+    const offset = idx - p;
+
+    // Visibility range limit (only render nearest cards for high performance)
+    const isVisible = Math.abs(offset) < 1.35;
+    cardRef.current.visible = isVisible;
+
+    if (isVisible) {
+      const angle = offset * 1.5; // spacing orbit angle
+      const radius = 3.6;
+      
+      // Coordinate placement relative to the viewport
+      cardRef.current.position.x = -1.35 + Math.sin(angle) * radius;
+      cardRef.current.position.z = Math.cos(angle) * radius - 3.6;
+      cardRef.current.position.y = -11.5 - offset * 0.45;
+      
+      // Rotation tilt to face-on the camera when active
+      cardRef.current.rotation.y = -angle * 0.85;
+      
+      // Slight mechanical roll/pitch
+      cardRef.current.rotation.x = Math.abs(offset) * 0.05;
+
+      // Scale down slightly when far away
+      const scale = 1 - Math.abs(offset) * 0.22;
+      cardRef.current.scale.set(scale, scale, 1);
+    }
+  });
+
+  // Calculate dynamic opacity styling outside for DOM element
+  const [opacity, setOpacity] = useState(0);
+
+  useFrame(() => {
+    const p = lerpedProgress.current * (experience.length - 1);
+    const offset = idx - p;
+    const currentOpacity = Math.max(0, 1 - Math.abs(offset) * 1.55);
+    setOpacity(currentOpacity);
+  });
+
+  return (
+    <group ref={cardRef}>
+      <Html 
+        transform 
+        occlude="blending" 
+        distanceFactor={6.8}
+        style={{ 
+          opacity: opacity,
+          transition: 'opacity 0.15s ease-out',
+          pointerEvents: opacity > 0.4 ? 'auto' : 'none'
+        }}
+      >
+        <div className="w-[450px] p-6 glass-panel border border-cyan-500/20 rounded-2xl text-left select-none hover:border-cyan-500/35 transition-colors shadow-2xl relative">
+          
+          {/* Header Badge */}
+          <div className="flex items-center justify-between gap-2.5 mb-4">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/25 text-cyan-400 font-mono text-[10px] uppercase font-semibold">
+              {exp.type}
+            </span>
+            {exp.highlights && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-teal-400 font-mono font-semibold">
+                <Terminal className="w-3.5 h-3.5" />
+                {exp.highlights}
+              </span>
+            )}
+          </div>
+
+          <h3 className="text-xl font-bold text-slate-50 font-display">
+            {exp.role}
+          </h3>
+          <div className="text-sm font-semibold text-slate-350 mt-1">
+            {exp.company}
+          </div>
+
+          {/* Details metadata */}
+          <div className="flex items-center gap-4 mt-3 mb-5 font-mono text-[11px] text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{exp.period}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5" />
+              <span>{exp.location}</span>
+            </div>
+          </div>
+
+          {/* Highlights logs */}
+          <ul className="space-y-3 text-xs sm:text-sm text-slate-400 leading-relaxed">
+            {exp.achievements.map((ach, aIdx) => (
+              <li key={aIdx} className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-cyan-500/60 flex-shrink-0 mt-0.5" />
+                <span>{ach}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Html>
+    </group>
+  );
+}
+
+// 3D Spinal Vertebral Column Segment
+function VertebraSegment3D({ pos, angle, isActive }) {
+  return (
+    <group position={pos} rotation={[0, 0, angle]}>
+      {/* Transverse Processes (lateral endpoints) */}
+      <mesh position={[-0.22, 0, 0]}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
+      </mesh>
+      <mesh position={[0.22, 0, 0]}>
+        <sphereGeometry args={[0.02, 8, 8]} />
+        <meshBasicMaterial color={isActive ? "#22d3ee" : "#334155"} />
+      </mesh>
+
+      {/* Vertebra Main Body Capsule */}
+      <mesh rotation={[0, 0, Math.PI / 2]}>
+        <capsuleGeometry args={[0.045, 0.28, 4, 8]} />
+        <meshBasicMaterial 
+          color={isActive ? "#22d3ee" : "#0f172a"} 
+          transparent={!isActive}
+          opacity={!isActive ? 0.35 : 1}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+// 3D Vertebral Spine Container
+function Spine3D({ lerpedProgress }) {
+  const spineRef = useRef();
+  const numSegs = 16;
+
+  // Pre-calculate anatomical 3D S-curve vertices
+  const spineSegments = useMemo(() => {
+    const segments = [];
+    const height = 3.6; // height span in 3D
+    const sway = 0.22;  // sway curvature width
+    
+    for (let i = 0; i < numSegs; i++) {
+      const t = i / (numSegs - 1);
+      const y = 1.8 - t * height;
+      const x = Math.sin(t * Math.PI * 2) * sway;
+      const z = Math.cos(t * Math.PI * 2) * 0.08; // subtle depth S-curve
+      
+      const dx = sway * Math.PI * 2 * Math.cos(t * Math.PI * 2);
+      const dy = -height;
+      const angle = Math.atan2(dx, dy);
+      
+      segments.push({ pos: [x, y, z], angle });
+    }
+    return segments;
+  }, []);
+
+  useFrame(() => {
+    if (!spineRef.current) return;
+    // Rotate spine continuously based on scroll progress
+    spineRef.current.rotation.y = lerpedProgress.current * Math.PI * 4;
+  });
+
+  return (
+    <group ref={spineRef} position={[2.0, -11.5, -0.6]}>
+      {spineSegments.map((seg, idx) => {
+        // Highlight active vertebra segment based on progress
+        const activeSegIdx = Math.min(
+          Math.floor(lerpedProgress.current * numSegs),
+          numSegs - 1
+        );
+        const isActive = activeSegIdx === idx;
+        
+        return (
+          <VertebraSegment3D
+            key={idx}
+            pos={seg.pos}
+            angle={seg.angle}
+            isActive={isActive}
+          />
+        );
+      })}
+    </group>
+  );
+}
+
 function PipelineScene() {
   const { camera } = useThree();
   const sceneRef = useRef();
   const linesRef = useRef();
   const mouse = useRef({ x: 0, y: 0 });
   const codeTextures = useCodeTextures();
+
+  // Scroll Trigger trackers for global and experience sections
+  const globalScrollProgress = useRef(0);
+  const expScrollProgress = useRef(0);
+  const lerpedExpProgress = useRef(0);
 
   // Generate node structures & connection line positions
   const { nodeData, linePositions, packets } = useMemo(() => {
@@ -83,10 +280,10 @@ function PipelineScene() {
 
     // Generate node positions vertically down in a helix/spiral
     for (let i = 0; i < nodeCount; i++) {
-      const theta = (i / nodeCount) * Math.PI * 14; // spiral downwards
+      const theta = (i / nodeCount) * Math.PI * 14;
       const radius = 3.5 + Math.random() * 1.5;
       const x = Math.cos(theta) * radius;
-      const y = -i * 0.8 + 8; // spread vertically down to y=-28
+      const y = -i * 0.8 + 8;
       const z = Math.sin(theta) * radius;
       
       positions.push(x, y, z);
@@ -95,11 +292,11 @@ function PipelineScene() {
         pos: [x, y, z],
         textureIdx: Math.floor(Math.random() * codeSnippets.length),
         scale: 1.2 + Math.random() * 0.6,
-        opacity: 0.15 + Math.random() * 0.15 // low opacity to prevent text clashing
+        opacity: 0.15 + Math.random() * 0.15
       });
     }
 
-    // Connect nodes into pipeline path (lines segments)
+    // Connect nodes into pipeline path
     const lineIndices = [];
     for (let i = 0; i < nodeCount - 1; i++) {
       lineIndices.push(
@@ -146,30 +343,46 @@ function PipelineScene() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // Setup GSAP camera scroll timeline scrub
+  // Bind ScrollTriggers for camera timeline and experience scroll
   useEffect(() => {
     camera.position.set(0, 8, 12);
     camera.lookAt(0, 0, 0);
 
-    const tl = gsap.timeline({
+    // Global Camera scroll timeline scrub
+    const globalTL = gsap.timeline({
       scrollTrigger: {
         trigger: "body",
         start: "top top",
         end: "bottom bottom",
         scrub: 1.2,
+        onUpdate: (self) => {
+          globalScrollProgress.current = self.progress;
+        }
       }
     });
 
-    tl.to(camera.position, { x: 2, y: 1.5, z: 9, ease: "none" })      // Hero -> About
+    globalTL.to(camera.position, { x: 2, y: 1.5, z: 9, ease: "none" })      // Hero -> About
       .to(camera.position, { x: -3.5, y: -4.5, z: 10, ease: "none" })  // About -> Skills
-      .to(camera.position, { x: 3.5, y: -11.5, z: 8.5, ease: "none" }) // Skills -> Experience
+      .to(camera.position, { x: 3.5, y: -11.5, z: 8.5, ease: "none" }) // Skills -> Experience (Camera focuses here)
       .to(camera.position, { x: -2.5, y: -18.5, z: 11.5, ease: "none" }) // Experience -> Projects
       .to(camera.position, { x: 0, y: -25.5, z: 9.5, ease: "none" })    // Projects -> Certifications
       .to(camera.position, { x: 1, y: -31.5, z: 11, ease: "none" });   // Certifications -> Contact
 
+    // Experience-specific Pinned ScrollTrigger
+    const expTrigger = ScrollTrigger.create({
+      trigger: "#experience",
+      start: "top top",
+      end: "+=200%",
+      scrub: true,
+      onUpdate: (self) => {
+        expScrollProgress.current = self.progress;
+      }
+    });
+
     return () => {
-      if (tl.scrollTrigger) tl.scrollTrigger.kill();
-      tl.kill();
+      if (globalTL.scrollTrigger) globalTL.scrollTrigger.kill();
+      globalTL.kill();
+      expTrigger.kill();
     };
   }, [camera]);
 
@@ -182,6 +395,9 @@ function PipelineScene() {
 
   useFrame((state) => {
     const time = state.clock.getElapsedTime();
+
+    // Lerp experience scroll progress for smooth transition motions
+    lerpedExpProgress.current += (expScrollProgress.current - lerpedExpProgress.current) * 0.08;
 
     // Mouse tilt Parallax
     if (sceneRef.current) {
@@ -214,7 +430,7 @@ function PipelineScene() {
 
   return (
     <group ref={sceneRef}>
-      {/* 1. Floating 3D Code Snippet Sprites (Replacing static dots) */}
+      {/* 1. Floating 3D Code Snippet Sprites */}
       {nodeData.map((node, i) => (
         <sprite 
           key={i} 
@@ -232,7 +448,7 @@ function PipelineScene() {
         </sprite>
       ))}
 
-      {/* 2. Connection Pipes (Line Segments) */}
+      {/* 2. Connection Pipes */}
       <lineSegments ref={linesRef}>
         <bufferGeometry>
           <bufferAttribute
@@ -241,7 +457,7 @@ function PipelineScene() {
           />
         </bufferGeometry>
         <lineBasicMaterial
-          color="#1e293b" // slate-800
+          color="#1e293b"
           transparent={true}
           opacity={0.35}
           linewidth={1}
@@ -251,13 +467,28 @@ function PipelineScene() {
       {/* 3. Fast Data Packets */}
       <points geometry={packetGeometry}>
         <pointsMaterial
-          color="#34d399" // Emerald
+          color="#34d399"
           size={0.25}
           sizeAttenuation={true}
           transparent={true}
           opacity={0.9}
         />
       </points>
+
+      {/* 4. Experience 3D orbit carousel nodes */}
+      <group>
+        {experience.map((exp, idx) => (
+          <ExperienceCard3D
+            key={idx}
+            idx={idx}
+            exp={exp}
+            lerpedProgress={lerpedExpProgress}
+          />
+        ))}
+      </group>
+
+      {/* 5. 3D Spine column structure */}
+      <Spine3D lerpedProgress={lerpedExpProgress} />
       
       <ambientLight intensity={0.4} />
       <directionalLight position={[5, 15, 5]} intensity={0.6} color="#22d3ee" />
